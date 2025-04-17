@@ -1,0 +1,17 @@
+services:
+  random-joke:
+    image: meanto/random-joke:latest
+    build: .
+    ports:
+      - "8888:8888"
+    restart: always
+  ngrok:
+    image: ngrok/ngrok:latest
+    command:
+      - "http"
+	  - "--url=welcome-cattle-regular.ngrok-free.app"
+      - "http://host.docker.internal:8888"
+    environment:
+      NGROK_AUTHTOKEN: 2vrV06cIJiiS66f8VGJaMLFfFew_7tuGr59u8UV285KGUPHGo
+    ports:
+      - 4040:4040

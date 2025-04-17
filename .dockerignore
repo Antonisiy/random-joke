@@ -1,0 +1,7 @@
+main.exe
+*.log
+*.test
+*.code-workspace
+Dockerfile
+docker-compose.yml
+.git
