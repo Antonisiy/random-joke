@@ -1,0 +1,102 @@
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f9f9f9 0%, #e0e7ff 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.container {
+  background: #fff;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  border-radius: 24px;
+  padding: 32px 24px 24px 24px;
+  margin-top: 60px;
+  max-width: 420px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: fadeIn 0.8s cubic-bezier(.39,.575,.565,1.000);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+h1 {
+  font-size: 2.1em;
+  font-weight: 700;
+  margin-bottom: 18px;
+  color: #3b3b3b;
+  letter-spacing: 1px;
+  text-align: center;
+}
+
+.joke {
+  font-size: 1.25em;
+  margin-bottom: 18px;
+  color: #222;
+  text-align: center;
+  line-height: 1.5;
+  min-height: 48px;
+  transition: color 0.2s;
+}
+
+.source {
+  color: #7b7b7b;
+  margin-bottom: 24px;
+  font-size: 0.98em;
+}
+
+.button-container {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn {
+  padding: 12px 28px;
+  font-size: 1.08em;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%);
+  color: #fff;
+  margin: 0 8px 10px 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.08);
+  transition: background 0.2s, transform 0.1s;
+}
+
+.btn:hover {
+  background: linear-gradient(90deg, #60a5fa 0%, #6366f1 100%);
+  transform: translateY(-2px) scale(1.03);
+}
+
+.translation {
+  margin-top: 22px;
+  color: #059669;
+  background: #e0f7ef;
+  border-radius: 8px;
+  padding: 12px 16px;
+  min-height: 24px;
+  font-size: 1.08em;
+  box-shadow: 0 1px 4px rgba(5,150,105,0.07);
+  animation: fadeIn 0.7s;
+}
+
+@media (max-width: 600px) {
+  .container {
+    margin-top: 18px;
+    padding: 18px 6vw 18px 6vw;
+  }
+  h1 { font-size: 1.3em; }
+  .joke { font-size: 1em; }
+  .btn { font-size: 0.98em; padding: 10px 12px; }
+}

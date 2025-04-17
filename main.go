@@ -163,8 +163,9 @@ func main() {
 	logger.SetOutput(os.Stdout)
 
 	router := mux.NewRouter()
-	// Подключаем middleware логирования
+	// Подключаем middleware
 	router.Use(loggingMiddleware)
+	router.Use(corsMiddleware) // Добавляем CORS middleware
 	router.HandleFunc("/random-joke", getRandomJoke).Methods("GET")
 	router.HandleFunc("/translate", translateHandler).Methods("POST")
 	// Новый endpoint для Telegram webhook
@@ -422,6 +423,22 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		rw := &responseWriter{w, http.StatusOK}
 		next.ServeHTTP(rw, r)
 		logger.Infof("[HTTP] %s %s %d %s", r.Method, r.URL.Path, rw.statusCode, time.Since(start))
+	})
+}
+
+// corsMiddleware добавляет CORS заголовки
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
 	})
 }
 
