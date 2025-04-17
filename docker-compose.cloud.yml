@@ -21,6 +21,21 @@ services:
     networks:
       - app-network
 
+  ngrok:
+    image: ngrok/ngrok:latest
+    command:
+      - "http"
+      - "80"
+      - "--domain=welcome-cattle-regular.ngrok-free.app"
+    environment:
+      - NGROK_AUTHTOKEN=2vrV06cIJiiS66f8VGJaMLFfFew_7tuGr59u8UV285KGUPHGo
+    ports:
+      - "4040:4040"
+    depends_on:
+      - frontend
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge

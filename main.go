@@ -429,7 +429,18 @@ func loggingMiddleware(next http.Handler) http.Handler {
 // corsMiddleware добавляет CORS заголовки
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		allowedOrigins := []string{
+			"http://localhost:5173",
+			"http://localhost",
+			"https://welcome-cattle-regular.ngrok-free.app",
+		}
+		origin := r.Header.Get("Origin")
+		for _, allowed := range allowedOrigins {
+			if origin == allowed {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				break
+			}
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
