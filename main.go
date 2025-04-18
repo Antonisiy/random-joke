@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -20,161 +20,63 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
-type Joke struct {
-	Text      string `json:"joke"`
-	Source    string `json:"source"`
-	IsRussian bool   `json:"is_russian"`
-}
-
-// JokeProvider описывает интерфейс для получения анекдота
-// Каждый провайдер реализует FetchJoke(ctx)
-type JokeProvider interface {
-	FetchJoke(ctx context.Context) (Joke, error)
-}
-
-// --- Реализации провайдеров ---
-
-// DadJokeProvider для icanhazdadjoke.com
-type DadJokeProvider struct{}
-
-func (p DadJokeProvider) FetchJoke(ctx context.Context) (Joke, error) {
-	url := "https://icanhazdadjoke.com"
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return Joke{}, err
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "MyJokeService (https://github.com/yourusername/joke-service)")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return Joke{}, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return Joke{}, err
-	}
-	ct := resp.Header.Get("Content-Type")
-	if ct == "" || !containsJSONContentType(ct) {
-		return Joke{}, fmt.Errorf("ожидался JSON, но Content-Type: %s", ct)
-	}
-	var result struct {
-		Joke string `json:"joke"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return Joke{}, err
-	}
-	return Joke{Text: result.Joke, Source: "icanhazdadjoke.com", IsRussian: false}, nil
-}
-
-// RzhunemoguProvider для rzhunemogu.ru
-type RzhunemoguProvider struct{}
-
-func (p RzhunemoguProvider) FetchJoke(ctx context.Context) (Joke, error) {
-	url := "http://rzhunemogu.ru/RandJSON.aspx?CType=1"
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return Joke{}, err
-	}
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return Joke{}, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return Joke{}, err
-	}
-	body, err = decodeWindows1251(body)
-	if err != nil {
-		return Joke{}, err
-	}
-	body = bytes.TrimPrefix(body, []byte("\xef\xbb\xbf"))
-	body = bytes.TrimSpace(body)
-	body = bytes.ReplaceAll(body, []byte("\r\n"), []byte("\\r\\n"))
-	var result struct {
-		Content string `json:"content"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return Joke{}, err
-	}
-	return Joke{Text: result.Content, Source: "rzhunemogu.ru", IsRussian: true}, nil
-}
-
-// JokeAPIProvider для jokeapi.dev
-type JokeAPIProvider struct{}
-
-func (p JokeAPIProvider) FetchJoke(ctx context.Context) (Joke, error) {
-	url := "https://v2.jokeapi.dev/joke/Any?type=single"
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return Joke{}, err
-	}
-	req.Header.Set("Accept", "application/json")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return Joke{}, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return Joke{}, err
-	}
-	var result struct {
-		Joke     string `json:"joke"`
-		Type     string `json:"type"`
-		Error    bool   `json:"error"`
-		Message  string `json:"message"`
-		Setup    string `json:"setup"`
-		Delivery string `json:"delivery"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return Joke{}, err
-	}
-	if result.Error {
-		return Joke{}, fmt.Errorf("JokeAPI error: %s", result.Message)
-	}
-	if result.Joke != "" {
-		return Joke{Text: result.Joke, Source: "jokeapi.dev", IsRussian: false}, nil
-	} else if result.Setup != "" && result.Delivery != "" {
-		return Joke{Text: result.Setup + "\n" + result.Delivery, Source: "jokeapi.dev", IsRussian: false}, nil
-	}
-	return Joke{}, fmt.Errorf("JokeAPI: пустой анекдот")
-}
-
 var (
-	logger        = logrus.New()
-	jokeProviders = []JokeProvider{
-		DadJokeProvider{},
-		RzhunemoguProvider{},
-		JokeAPIProvider{},
-	}
-	port       = flag.String("port", "8888", "Порт для запуска сервера")
-	jokeMemory map[int64]string
+	port = flag.String("port", "8888", "Порт для запуска сервера")
 )
 
 func main() {
 	flag.Parse()
 
-	logger.SetFormatter(&logrus.JSONFormatter{})
-	logger.SetOutput(os.Stdout)
+	// Set up logging
+	logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+		DisableColors: false,
+	})
+	logger.SetLevel(logrus.DebugLevel)
+	logger.SetOutput(os.Stderr)
 
 	router := mux.NewRouter()
 	// Подключаем middleware
 	router.Use(loggingMiddleware)
-	router.Use(corsMiddleware) // Добавляем CORS middleware
+	router.Use(corsMiddleware)
+
+	// Регистрируем маршруты
 	router.HandleFunc("/random-joke", getRandomJoke).Methods("GET")
 	router.HandleFunc("/translate", translateHandler).Methods("POST")
-	// Новый endpoint для Telegram webhook
 	router.HandleFunc("/telegram-webhook", telegramWebhookHandler).Methods("POST")
-	// Кастомный обработчик статики для SPA
 	router.PathPrefix("/").HandlerFunc(spaHandler)
 
-	logger.Infof("Сервис запущен на порту :%s", *port)
-	log.Fatal(http.ListenAndServe(":"+*port, router))
+	srv := &http.Server{
+		Addr:    ":" + *port,
+		Handler: router,
+	}
+
+	// Канал для получения сигналов операционной системы
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	// Запускаем сервер в отдельной горутине
+	go func() {
+		logger.Infof("Сервис запущен на порту :%s", *port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatalf("Ошибка запуска сервера: %v", err)
+		}
+	}()
+
+	// Ожидаем сигнал завершения
+	<-done
+	logger.Info("Получен сигнал завершения, начинаем graceful shutdown...")
+
+	// Создаем контекст с таймаутом для graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Errorf("Ошибка при graceful shutdown: %v", err)
+		os.Exit(1)
+	}
+
+	logger.Info("Сервер успешно остановлен")
 }
 
 // spaHandler отдаёт index.html для GET-запросов к несуществующим файлам (SPA-режим)
@@ -194,18 +96,27 @@ func spaHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getRandomJoke(w http.ResponseWriter, r *http.Request) {
-	rand.Seed(time.Now().UnixNano())
-	provider := jokeProviders[rand.Intn(len(jokeProviders))]
+	provider := selectWeightedProvider()
+	logger.Infof("Выбран провайдер: %T", provider)
+
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
+
 	joke, err := provider.FetchJoke(ctx)
 	if err != nil {
+		logger.Errorf("Ошибка получения анекдота от провайдера %T: %v", provider, err)
 		http.Error(w, "Анекдоты временно недоступны", http.StatusInternalServerError)
-		logger.Errorf("Ошибка получения анекдота: %v", err)
 		return
 	}
+
+	logger.Infof("Получен анекдот от %s: %s", joke.Source, joke.Text)
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(joke)
+	if err := json.NewEncoder(w).Encode(joke); err != nil {
+		logger.Errorf("Ошибка сериализации анекдота в JSON: %v", err)
+		http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
+		return
+	}
 }
 
 // containsJSONContentType проверяет, содержит ли Content-Type подстроку "application/json"
@@ -414,51 +325,4 @@ func processTelegramUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 			bot.Send(msg)
 		}
 	}
-}
-
-// loggingMiddleware логирует все HTTP-запросы
-func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		rw := &responseWriter{w, http.StatusOK}
-		next.ServeHTTP(rw, r)
-		logger.Infof("[HTTP] %s %s %d %s", r.Method, r.URL.Path, rw.statusCode, time.Since(start))
-	})
-}
-
-// corsMiddleware добавляет CORS заголовки
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		allowedOrigins := []string{
-			"http://localhost:5173",
-			"http://localhost",
-			"https://welcome-cattle-regular.ngrok-free.app",
-		}
-		origin := r.Header.Get("Origin")
-		for _, allowed := range allowedOrigins {
-			if origin == allowed {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				break
-			}
-		}
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
 }
