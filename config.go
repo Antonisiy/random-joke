@@ -1,7 +1,10 @@
 package main
 
 import (
+	"os"
+
 	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 )
 
 // Configuration constants and variables
@@ -12,6 +15,9 @@ const (
 var (
 	// Глобальный логгер
 	logger = logrus.New()
+
+	// Глобальная конфигурация
+	appConfig *Config
 
 	// Все доступные провайдеры анекдотов
 	jokeProviders = []JokeProvider{
@@ -41,3 +47,21 @@ var (
 	// Память для хранения последних анекдотов в Telegram
 	jokeMemory map[int64]string
 )
+
+type Config struct {
+	TelegramBotToken string `yaml:"telegram_bot_token"`
+}
+
+func LoadConfig(filename string) (*Config, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	var config Config
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}

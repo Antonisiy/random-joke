@@ -21,11 +21,19 @@ import (
 )
 
 var (
-	port = flag.String("port", "8888", "Порт для запуска сервера")
+	port      = flag.String("port", "8888", "Порт для запуска сервера")
+	appConfig *Config
 )
 
 func main() {
 	flag.Parse()
+
+	// Load config
+	config, err := LoadConfig("config.yaml")
+	if err != nil {
+		logger.Fatalf("Ошибка загрузки конфига: %v", err)
+	}
+	appConfig = config
 
 	// Set up logging
 	logger.SetFormatter(&logrus.TextFormatter{
@@ -244,12 +252,13 @@ func translateText(text string) (string, error) {
 
 // telegramWebhookHandler обрабатывает входящие webhook-запросы Telegram
 func telegramWebhookHandler(w http.ResponseWriter, r *http.Request) {
-	bot, err := tgbotapi.NewBotAPI("7868740739:AAEkNOti1b1yGF04N12WNQ1uJJSAupdwh8U")
+	bot, err := tgbotapi.NewBotAPI(appConfig.TelegramBotToken)
 	if err != nil {
 		logger.Errorf("Ошибка запуска Telegram-бота: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
 	update := tgbotapi.Update{}
 	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
 		logger.Errorf("Ошибка декодирования webhook: %v", err)
