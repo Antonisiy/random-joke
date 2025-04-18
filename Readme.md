@@ -14,12 +14,11 @@
 
 1. **Запуск сервиса**
    ```sh
-   go run main.go
+   go run .
    ```
    или через Docker:
    ```sh
-   docker build -t random-joke .
-   docker run -p 8080:8080 random-joke
+   docker-compose up --build -d
    ```
 
 2. **Интеграция с Telegram**
