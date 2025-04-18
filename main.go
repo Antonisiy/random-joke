@@ -21,15 +21,14 @@ import (
 )
 
 var (
-	port      = flag.String("port", "8888", "Порт для запуска сервера")
-	appConfig *Config
+	port = flag.String("port", "8888", "Порт для запуска сервера")
 )
 
 func main() {
 	flag.Parse()
 
 	// Load config
-	config, err := LoadConfig("config.yaml")
+	config, err := LoadConfig("./config.yaml")
 	if err != nil {
 		logger.Fatalf("Ошибка загрузки конфига: %v", err)
 	}

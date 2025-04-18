@@ -11,8 +11,9 @@ RUN apk add --no-cache gcc musl-dev
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy all Go source files
+# Copy all Go source files and config
 COPY *.go ./
+COPY config.yaml ./
 COPY static ./static
 
 # Build the application
@@ -22,8 +23,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o random-joke .
 FROM alpine:3.19
 WORKDIR /app
 
-# Copy only the built binary and static files
+# Copy the built binary, config and static files
 COPY --from=builder /app/random-joke .
+COPY --from=builder /app/config.yaml .
 COPY --from=builder /app/static ./static
 
 EXPOSE 8888
